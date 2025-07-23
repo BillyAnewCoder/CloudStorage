@@ -1,0 +1,29 @@
+# Include the README and other documentation files
+include README.md
+include CHANGELOG.md
+include LICENSE
+include pyproject.toml
+
+# Include package data
+include cloudstorage_sdk/py.typed
+
+# Include examples and documentation
+recursive-include examples *.py *.md *.txt *.json *.yaml *.yml
+recursive-include docs *.md *.rst *.txt *.py *.yaml *.yml
+prune docs/_build
+
+# Include test files for source distributions
+recursive-include tests *.py *.json *.yaml *.yml *.txt *.md
+
+# Exclude unnecessary files
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude *.cfg
+exclude tox.ini
+exclude .coverage
+recursive-exclude * __pycache__.py
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude * .git*
+recursive-exclude * *.swp
+recursive-exclude * *.swo
