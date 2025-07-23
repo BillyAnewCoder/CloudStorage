@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.8, 3.9, '3.10', 3.11, 3.12]
+        exclude:
+          # Reduce matrix size for faster CI
+          - os: windows-latest
+            python-version: 3.8
+          - os: macos-latest
+            python-version: 3.8
+          - os: windows-latest
+            python-version: 3.9
+          - os: macos-latest
+            python-version: 3.9
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 cloudstorage_sdk tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 cloudstorage_sdk tests --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+    - name: Check code formatting with black
+      run: |
+        black --check cloudstorage_sdk tests
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only cloudstorage_sdk tests
+
+    - name: Type check with mypy
+      run: |
+        mypy cloudstorage_sdk
+
+    - name: Test with pytest
+      run: |
+        pytest tests/ -v --cov=cloudstorage_sdk --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit[toml]
+    
+    - name: Check for security vulnerabilities in dependencies
+      run: |
+        safety check --json
+    
+    - name: Run security linter
+      run: |
+        bandit -r cloudstorage_sdk -f json
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build package
+      run: |
+        python -m build
+    
+    - name: Check package
+      run: |
+        twine check dist/*
+    
+    - name: Test installation
+      run: |
+        pip install dist/*.whl
+        python -c "import cloudstorage_sdk; print(cloudstorage_sdk.__version__)"
